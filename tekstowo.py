@@ -1,14 +1,14 @@
 # Necessary imports
+from typing import Tuple, List, Dict
+from datetime import datetime
+from bs4 import BeautifulSoup
+
+import os
+import argparse
 import string
 import time
 import requests
 import langdetect
-import os
-import argparse
-
-from typing import Tuple, List, Dict
-from bs4 import BeautifulSoup
-from datetime import datetime
 
 # Parser config
 parser = argparse.ArgumentParser(description="Crawler and scraper dedicated to tekstowo.pl domain")
@@ -17,9 +17,9 @@ parser.add_argument("--letter", "--ARTIST_LETTER", help="Choose a letter to scra
 args = parser.parse_args()
 
 # Config
-ARTIST_LETTER: str = args.ARTIST_LETTER or "Q"
+ARTIST_LETTER: str = args.letter.upper() or "Q"
 
-##TODO:
+# TODO:
 # create functions: save_progress, load_progress, continue_cycle
 # decide how to save progress: either txt with specific formatting or a json file
 # progress bar?
@@ -37,7 +37,7 @@ def generate_timestamp() -> str:
 
     return timestamp
 
-def processing_time(start_timestamp: datetime.datetime, end_timestamp: datetime.datetime) -> Tuple[int, int, int, int]:
+def processing_time(start_timestamp: datetime, end_timestamp: datetime) -> Tuple[int, int, int, int]:
     """
     Counts the time that has passed performing a given task.
     """
@@ -61,8 +61,9 @@ def get_max_page_number(url: str) -> int:
     max_page = 0
 
     try: 
-        req = requests.get(url)
+        req = requests.get(url, timeout=60)
         req.raise_for_status()
+    
     except requests.exceptions.RequestException as e:
         print(f"An error occured: {e}")
         return max_page
@@ -90,16 +91,16 @@ def create_lut_pagination() -> dict:
     lut_pages = {}
 
     for letter in alphabet:
-            time.sleep(1)
-            url = f"https://www.tekstowo.pl/artysci_na,{letter}.html"
+        time.sleep(1)
+        url = f"https://www.tekstowo.pl/artysci_na,{letter}.html"
 
-            try:
-                lut_pages[letter] = get_max_page_number(url)
-                print(f"Letter {letter} has {lut_pages[letter]} pages of artists.")
+        try:
+            lut_pages[letter] = get_max_page_number(url)
+            print(f"Letter {letter} has {lut_pages[letter]} pages of artists.")
 
-            except Exception as e:
-                print(f"An error has occured for letter {letter}: {e}")
-    
+        except Exception as e:
+            print(f"An error has occured for letter {letter}: {e}")
+   
     return lut_pages
 
 def pages_per_letter(ARTIST_LETTER: str) -> dict:
@@ -117,10 +118,10 @@ def pages_per_letter(ARTIST_LETTER: str) -> dict:
 
     except Exception as e:
         print(f"An error has occured for letter {ARTIST_LETTER}: {e}")
-    
+   
     return letter_max_page
 
-def get_artists(letter: str, max_page_per_letter: Dict[str, int] or int) -> Tuple[List[str], int]:
+def get_artists(ARTIST_LETTER: str, max_page_per_letter: Dict[str, int] or int) -> Tuple[List[str], int]:
     """
     Scrape all of the artists starting with a given letter in the alphabet.
     """
@@ -128,7 +129,7 @@ def get_artists(letter: str, max_page_per_letter: Dict[str, int] or int) -> Tupl
     urls = []
 
     if isinstance(max_page_per_letter, dict):
-        limit = max_page_per_letter[letter]	
+        limit = max_page_per_letter[ARTIST_LETTER]
     elif isinstance(max_page_per_letter, int):
         limit = max_page_per_letter
     else:
@@ -137,25 +138,26 @@ def get_artists(letter: str, max_page_per_letter: Dict[str, int] or int) -> Tupl
             integer value.")
 
     for page in range(1, limit + 1):
-        url = f"https://www.tekstowo.pl/artysci_na,{letter},strona,{page}.html"
+        url = f"https://www.tekstowo.pl/artysci_na,{ARTIST_LETTER},strona,{page}.html"
 
         try:
             time.sleep(2)
-            response = requests.get(url)
+            response = requests.get(url, timeout=60)
             if response.ok:
                 soup = BeautifulSoup(response.content, 'lxml')
                 for link in soup.find_all('a'):
                     item = link.get('href')
-                    if type(item) == str and 'piosenki_' in item:
+                    if isinstance(item, str) and 'piosenki_' in item:
                         urls.append('https://tekstowo.pl' + item)
 
         except Exception as e:
             print(e)
 
-        print(f"{letter}: Visited {page}/{limit}")
-        
-    print(f"{generate_timestamp()}Letter {letter}: collected {len(urls)} artists")
-    print(f"Letter {letter} artists collected.")
+        print(f"{ARTIST_LETTER}: Visited {page}/{limit}")
+       
+    print(f"{generate_timestamp()}Letter {ARTIST_LETTER}: collected {len(urls)} artists")
+    print(f"Letter {ARTIST_LETTER} artists collected.")
+
     return urls, len(urls)
 
 def get_artist_songs(artist_url: str) -> list:
@@ -168,7 +170,7 @@ def get_artist_songs(artist_url: str) -> list:
     while not processed_first_page:
         time.sleep(5)
         try:
-            response = requests.get(artist_url)
+            response = requests.get(artist_url, timeout=60)
 
             # Check for request success
             response.raise_for_status()
@@ -219,14 +221,14 @@ def extract_song(song_url: str) -> Tuple[str, str, str]:
     song_translation = None
 
     try:
-        response = requests.get(song_url)
+        response = requests.get(song_url, timeout=60)
         if response.ok:
             # Scrape URL content with BeautifulSoup
             soup = BeautifulSoup(response.content, 'lxml')
 
             # Song title
             song_title = soup.find(class_='col-lg-7').text.strip()
-        
+      
             # Original song
             song_html = soup.find(class_='inner-text')			
             song = song_html.text.strip()
@@ -247,11 +249,10 @@ def assess_language(song_text: str) -> str:
     if not isinstance(song_text, str):
         return False
 
-    else:
-        try:
-            return langdetect.detect(song_text)
-        except langdetect.lang_detect_exception.LangDetectException:
-            return False
+    try:
+        return langdetect.detect(song_text)
+    except langdetect.lang_detect_exception.LangDetectException:
+        return False
 
 def save_songs(title: str, song_1: str, song_2: str, lang_1: str, lang_2: str):
     """
@@ -261,6 +262,7 @@ def save_songs(title: str, song_1: str, song_2: str, lang_1: str, lang_2: str):
 
     # Saving directory
     save_dir = "teksty/"
+    os.makedirs(save_dir, exist_ok=True)
 
     # Title cannot have backslash in it
     clean_title = title.replace('/', '-')
@@ -268,11 +270,11 @@ def save_songs(title: str, song_1: str, song_2: str, lang_1: str, lang_2: str):
     # Original song
     if isinstance(lang_1, str) and len(lang_1) < 3 and len(song_1) > 10:
         song_1_filename = f"{clean_title}__{lang_1.upper()}.txt"
-        
+       
         # Save to a file
         with open(os.path.join(save_dir, song_1_filename), 'w', encoding='utf-8') as f:
             f.write(song_1)
-            f.close()	
+            f.close()
             print(f"{generate_timestamp()} Original successfully saved: {title}")
     else:
         print(f"{generate_timestamp()} Song {title} is too short or has no text.")
@@ -285,8 +287,7 @@ def save_songs(title: str, song_1: str, song_2: str, lang_1: str, lang_2: str):
         with open(os.path.join(save_dir, song_2_filename), 'w', encoding='utf-8') as f:
             f.write(song_2)
             f.close()
-            print(f"{generate_timestamp()} Translation successfully saved: {title}")
-    
+            print(f"{generate_timestamp()} Translation successfully saved: {title}")    
     else:
         print(f"{generate_timestamp()} Translation not found or empty.")
 
@@ -301,10 +302,11 @@ def load_progress():
     """
     Loads in the data from save file created by the script.
     """
-    pass
 
 def main_cycle(ARTIST_LETTER: str):
-
+    """
+    Main script cycle
+    """
     start_timestamp = datetime.now()
     cnt = 0
 
@@ -345,15 +347,19 @@ def main_cycle(ARTIST_LETTER: str):
         print(f"{generate_timestamp()}: Letter {ARTIST_LETTER}, processed {cnt}/{artist_cnt}")
 
     # Finish the cycle
-    end_timestamp = datetime.now()	
-    days, hours, minutes, seconds = processing_time(start_timestamp=start_timestamp, end_timestamp=end_timestamp)
+    end_timestamp = datetime.now()
+    days, hours, minutes, seconds = processing_time(start_timestamp=start_timestamp,
+                                                    end_timestamp=end_timestamp)
     print(f"{ARTIST_LETTER} finished processing.")
     print(f"Processing time: {days}d, {hours}h, {minutes}min {seconds}s")
     
-    return True	
+    return True
 
-def continue_cycle(ARTIST_LETTER):
+def continue_cycle(ARTIST_LETTER: str):
+
     """
     Reads in the last visited URL and continues from this onwards.
     """
-    pass
+
+if __name__ == "__main__":
+    main_cycle(ARTIST_LETTER)
