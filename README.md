@@ -39,7 +39,7 @@ This script is designed to scrape song lyrics and related information for artist
 
 * Python 3.x
 * BeautifulSoup
-*r equests
+* requests
 * langdetect
 
 You can install the required packages using pip:

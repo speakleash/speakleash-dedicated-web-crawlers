@@ -12,13 +12,22 @@ import langdetect
 
 # Parser config
 parser = argparse.ArgumentParser(description="Crawler and scraper dedicated to tekstowo.pl domain")
-parser.add_argument("--letter", "--ARTIST_LETTER", help="Choose a letter to scrape the lyrics from (default = Q)", default="", type=str)
+parser.add_argument("--letter", 
+    "--ARTIST_LETTER", 
+    help="Choose a letter to scrape the lyrics from (default = Q)", 
+    default="Q", 
+    type=str)
+parser.add_argument("--save_progress", 
+    "--SAVE_PROGRESS", 
+    help="Choose the interval of creating a save_progress file", 
+    default=30, 
+    type=int)
 
 args = parser.parse_args()
 
 # Config
-ARTIST_LETTER: str = args.letter or "Q" 
-SAVE_PROGRESS = 30 # interval of creating a save state file
+ARTIST_LETTER: str = args.letter
+SAVE_PROGRESS: int = args.save_progress # interval of creating a save state file
 
 # TODO:
 # create functions: save_progress, load_progress, continue_cycle - DONE
@@ -61,7 +70,7 @@ def get_max_page_number(url: str) -> int:
 
     max_page = 0
 
-    try: 
+    try:
         req = requests.get(url, timeout=60)
         req.raise_for_status()
     
@@ -259,7 +268,7 @@ def assess_language(song_text: str) -> str:
     except langdetect.lang_detect_exception.LangDetectException:
         return False
 
-def save_songs(title: str, song_1: str, song_2: str, lang_1: str, lang_2: str):
+def save_songs(title: str, original_song: str, translated_song: str, lang_1: str, lang_2: str):
     """
     Save the scraped song with corresponding languages
     and title.
@@ -273,25 +282,23 @@ def save_songs(title: str, song_1: str, song_2: str, lang_1: str, lang_2: str):
     clean_title = title.replace('/', '-')
 
     # Original song
-    if isinstance(lang_1, str) and len(lang_1) < 3 and len(song_1) > 10:
-        song_1_filename = f"{clean_title}__{lang_1.upper()}.txt"
+    if isinstance(lang_1, str) and len(lang_1) < 3 and len(original_song) > 10:
+        original_song_filename = f"{clean_title}__{lang_1.upper()}.txt"
 
         # Save to a file
-        with open(os.path.join(save_dir, song_1_filename), 'w', encoding='utf-8') as f:
-            f.write(song_1)
-            f.close()
+        with open(os.path.join(save_dir, original_song_filename), 'w', encoding='utf-8') as f:
+            f.write(original_song)
             print(f"{generate_timestamp()}: Original successfully saved: {title}")
     else:
         print(f"{generate_timestamp()}: Song {title} is too short or has no text.")
 
     # Translated song
-    if isinstance(lang_2, str) and len(lang_2) < 3 and len(song_2) > 10:
-        song_2_filename = f"{clean_title}__TRAN__{lang_2.upper()}.txt"
+    if isinstance(lang_2, str) and len(lang_2) < 3 and len(translated_song) > 10:
+        translated_song_filename = f"{clean_title}__TRAN__{lang_2.upper()}.txt"
 
         # Save to a file
-        with open(os.path.join(save_dir, song_2_filename), 'w', encoding='utf-8') as f:
-            f.write(song_2)
-            f.close()
+        with open(os.path.join(save_dir, translated_song_filename), 'w', encoding='utf-8') as f:
+            f.write(translated_song)
             print(f"{generate_timestamp()}: Translation successfully saved: {title}")    
     else:
         print(f"{generate_timestamp()}: Translation not found or empty.")
@@ -302,12 +309,11 @@ def save_progress(ARTIST_LETTER: str, artist_url: str):
     the script was working on.
     """
 
-    progress_file = f"{ARTIST_LETTER}_progress.txt"
+    progress_file = os.path.join(ARTIST_LETTER, "_progress.txt")
     progress_text = f"{ARTIST_LETTER}###{artist_url}"
     
     with open(os.path.join(progress_file), 'w', encoding='utf-8') as f:
         f.write(progress_text)
-        f.close()
 
     return True
 
@@ -316,12 +322,11 @@ def load_progress(ARTIST_LETTER: str):
     Loads in the data from save file created by the script.
     """
 
-    progress_file = f"{ARTIST_LETTER}_progress.txt"
+    progress_file = os.path.join(ARTIST_LETTER, "_progress.txt")
     
     try:
         with open(os.path.join(progress_file), "r", encoding="utf-8") as f:
             progress_text = f.read()
-            f.close()
 
         visited_url = progress_text.split("###")[1]
         return visited_url
