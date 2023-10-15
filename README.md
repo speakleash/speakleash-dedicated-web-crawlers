@@ -37,17 +37,15 @@ This script is designed to scrape song lyrics and related information for artist
 
 ### Requirements
 
-*Python 3.x
-*BeautifulSoup
-*requests
-*langdetect
+* Python 3.x
+* BeautifulSoup
+*r equests
+* langdetect
 
 You can install the required packages using pip:
 
 ```bash
-
-pip  install  beautifulsoup4  requests  langdetect
-
+pip install beautifulsoup4 requests langdetect
 ```
 
 ### Installation
@@ -55,11 +53,8 @@ pip  install  beautifulsoup4  requests  langdetect
 1. Clone the repository:
 
 ```bash
-
-git  clone <repository-url>
-
-cd <repository-name>
-
+git clone git@github.com:speakleash/speakleash-dedicated-web-crawlers.git
+cd speakleash-dedicated-web-crawlers
 ```
 
 2. Install the required packages as mentioned in the Requirements section.
@@ -76,12 +71,10 @@ You can configure the scraping parameters using command-line arguments:
 Run the script using Python and specify the desired options:
 
 ```bash
-
-python  tekstowo.py  --letter <letter> --save_progress <interval>
-
+python tekstowo.py --letter <letter> --save_progress <interval>
 ```
 
-Replace `letter` with the starting letter for artists' names, and `interval` with the desired save progress interval.
+Replace `<letter>` with the starting letter for artists' names, and `<interval>` with the desired save progress interval.
 
 ### Contributing
 
