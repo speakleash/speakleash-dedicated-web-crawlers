@@ -17,11 +17,12 @@ parser.add_argument("--letter", "--ARTIST_LETTER", help="Choose a letter to scra
 args = parser.parse_args()
 
 # Config
-ARTIST_LETTER: str = args.letter.upper() or "Q"
+ARTIST_LETTER: str = args.letter or "Q" 
+SAVE_PROGRESS = 30 # interval of creating a save state file
 
 # TODO:
-# create functions: save_progress, load_progress, continue_cycle
-# decide how to save progress: either txt with specific formatting or a json file
+# create functions: save_progress, load_progress, continue_cycle - DONE
+# decide how to save progress: either txt with specific formatting or a json file - DONE
 # progress bar?
 
 # Function collection
@@ -33,7 +34,7 @@ def generate_timestamp() -> str:
     current_datetime = datetime.now()
 
     # Format the date and time as a string
-    timestamp = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
+    timestamp = current_datetime.strftime("%Y-%m-%d, %H:%M:%S")
 
     return timestamp
 
@@ -110,6 +111,10 @@ def pages_per_letter(ARTIST_LETTER: str) -> dict:
     """
 
     letter_max_page = 0
+
+    if len(ARTIST_LETTER) < 2:
+        ARTIST_LETTER = ARTIST_LETTER.upper()
+    
     url = f"https://www.tekstowo.pl/artysci_na,{ARTIST_LETTER}.html"
 
     try:
@@ -155,7 +160,7 @@ def get_artists(ARTIST_LETTER: str, max_page_per_letter: Dict[str, int] or int) 
 
         print(f"{ARTIST_LETTER}: Visited {page}/{limit}")
        
-    print(f"{generate_timestamp()}Letter {ARTIST_LETTER}: collected {len(urls)} artists")
+    print(f"{generate_timestamp()}: Letter {ARTIST_LETTER}: collected {len(urls)} artists")
     print(f"Letter {ARTIST_LETTER} artists collected.")
 
     return urls, len(urls)
@@ -270,14 +275,14 @@ def save_songs(title: str, song_1: str, song_2: str, lang_1: str, lang_2: str):
     # Original song
     if isinstance(lang_1, str) and len(lang_1) < 3 and len(song_1) > 10:
         song_1_filename = f"{clean_title}__{lang_1.upper()}.txt"
-       
+
         # Save to a file
         with open(os.path.join(save_dir, song_1_filename), 'w', encoding='utf-8') as f:
             f.write(song_1)
             f.close()
-            print(f"{generate_timestamp()} Original successfully saved: {title}")
+            print(f"{generate_timestamp()}: Original successfully saved: {title}")
     else:
-        print(f"{generate_timestamp()} Song {title} is too short or has no text.")
+        print(f"{generate_timestamp()}: Song {title} is too short or has no text.")
 
     # Translated song
     if isinstance(lang_2, str) and len(lang_2) < 3 and len(song_2) > 10:
@@ -287,25 +292,47 @@ def save_songs(title: str, song_1: str, song_2: str, lang_1: str, lang_2: str):
         with open(os.path.join(save_dir, song_2_filename), 'w', encoding='utf-8') as f:
             f.write(song_2)
             f.close()
-            print(f"{generate_timestamp()} Translation successfully saved: {title}")    
+            print(f"{generate_timestamp()}: Translation successfully saved: {title}")    
     else:
-        print(f"{generate_timestamp()} Translation not found or empty.")
+        print(f"{generate_timestamp()}: Translation not found or empty.")
 
-def save_progress():
+def save_progress(ARTIST_LETTER: str, artist_url: str):
     """
     Saves the last processed url to a txt file, along with the letter
     the script was working on.
     """
-    pass
 
-def load_progress():
+    progress_file = f"{ARTIST_LETTER}_progress.txt"
+    progress_text = f"{ARTIST_LETTER}###{artist_url}"
+    
+    with open(os.path.join(progress_file), 'w', encoding='utf-8') as f:
+        f.write(progress_text)
+        f.close()
+
+    return True
+
+def load_progress(ARTIST_LETTER: str):
     """
     Loads in the data from save file created by the script.
     """
 
+    progress_file = f"{ARTIST_LETTER}_progress.txt"
+    
+    try:
+        with open(os.path.join(progress_file), "r", encoding="utf-8") as f:
+            progress_text = f.read()
+            f.close()
+
+        visited_url = progress_text.split("###")[1]
+        return visited_url
+
+    except Exception as e:
+        print(f"An error occured: {e}")
+        return False
+
 def main_cycle(ARTIST_LETTER: str):
     """
-    Main script cycle
+    Main script cycle - fresh letter, no continuation
     """
     start_timestamp = datetime.now()
     cnt = 0
@@ -344,7 +371,11 @@ def main_cycle(ARTIST_LETTER: str):
         
         # Artist per letter counter
         cnt += 1
-        print(f"{generate_timestamp()}: Letter {ARTIST_LETTER}, processed {cnt}/{artist_cnt}")
+        print(f"{generate_timestamp()} : Letter {ARTIST_LETTER}, processed {cnt}/{artist_cnt}")
+
+        # Save current progress
+        if save_progress(ARTIST_LETTER, artist_url) and cnt % SAVE_PROGRESS == 0:
+            print(f"Progress saved to file - {ARTIST_LETTER}_progress.txt")
 
     # Finish the cycle
     end_timestamp = datetime.now()
@@ -356,10 +387,73 @@ def main_cycle(ARTIST_LETTER: str):
     return True
 
 def continue_cycle(ARTIST_LETTER: str):
-
     """
     Reads in the last visited URL and continues from this onwards.
+    If there is no progress_file, starts the scraping from scratch.
     """
+    # Check if there is a progress file
+    last_url = load_progress(ARTIST_LETTER)
+
+    if not last_url:
+        print("No progress file found, starting from scratch")
+        main_cycle(ARTIST_LETTER)
+
+    else:
+        start_timestamp = datetime.now()
+
+        # Get max page per given letter
+        max_page = pages_per_letter(ARTIST_LETTER)
+
+        # Collect all artists per given letter
+        artist_urls, artist_cnt = get_artists(ARTIST_LETTER, max_page)
+
+        # Check where to start from
+        item_no = artist_urls.index(last_url, 0, len(artist_urls))
+        artist_urls_left = artist_urls[item_no:]
+
+        # Update artist counter
+        cnt = item_no
+        print(f"Progress file found, starting from URL: {last_url}\n\
+            Processed URLs: {item_no}\nURLs left: {len(artist_urls_left) - item_no}")
+
+        # Go through every artist in the URL list
+        for artist_url in artist_urls_left:
+
+            # Collect all song URLs per artist
+            artist_songs = get_artist_songs(artist_url)
+
+            try:
+                # Delay
+                time.sleep(5)
+
+                # Go through all song URLs
+                for artist_song in artist_songs:
+
+                    # Extract lyrics of given song
+                    text1, text2, title = extract_song(artist_song)
+
+                    # Check the lyrics' language
+                    lang1 = assess_language(text1)
+                    lang2 = assess_language(text2)
+
+                    # Save songs to txt file
+                    save_songs(title, text1, text2, lang1, lang2)
+
+            except Exception as e:
+                print(f"An error occured: {e}")
+            
+            # Artist per letter counter
+            cnt += 1
+            print(f"{generate_timestamp()} : Letter {ARTIST_LETTER}, processed {cnt}/{artist_cnt}")
+
+        # Finish the cycle
+        end_timestamp = datetime.now()
+        days, hours, minutes, seconds = processing_time(start_timestamp=start_timestamp,
+                                                        end_timestamp=end_timestamp)
+        print(f"{ARTIST_LETTER} finished processing.")
+        print(f"Processing time: {days}d, {hours}h, {minutes}min {seconds}s")
+        
+        return True
 
 if __name__ == "__main__":
-    main_cycle(ARTIST_LETTER)
+    continue_cycle(ARTIST_LETTER)
